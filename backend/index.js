@@ -2,125 +2,81 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
-import cron from "node-cron";
+import crypto from "crypto";
 
 dotenv.config();
-
-const {
-  GMAIL_USER,
-  GMAIL_APP_PASSWORD,
-  DEFAULT_TO = process.env.GMAIL_USER,
-  PORT = 5000,
-} = process.env;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Simple in-memory store for tokens (⚠️ later replace with DB)
+const tokens = new Map();
+
+// 1) Setup transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_APP_PASSWORD,
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
 
-transporter.verify((err) => {
-  if (err) console.error("❌ SMTP verify failed:", err.message);
-  else console.log("✅ SMTP ready to send");
-});
+// 2) Signup route → generate token + send verification email
+app.post("/signup", async (req, res) => {
+  const { email, name } = req.body;
 
-// Fetch top 3 AI-related news stories from Hacker News (no key needed)
-async function getAiTechNews() {
-  const url = "https://hn.algolia.com/api/v1/search?query=AI OR technology&tags=story&hitsPerPage=5";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Hacker News API error: ${res.status}`);
-  const data = await res.json();
-  return (data.hits || [])
-    .slice(0, 3)
-    .map((n) => ({
-      title: n.title || "Untitled story",
-      url: n.url || `https://news.ycombinator.com/item?id=${n.objectID}`,
-      author: n.author || "unknown",
-    }));
-}
+  if (!email) {
+    return res.status(400).json({ success: false, message: "Email is required" });
+  }
 
-function escapeHtml(str = "") {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
+  // generate token
+  const token = crypto.randomBytes(20).toString("hex");
+  tokens.set(token, email);
 
-function buildEmailHtml(newsItems) {
-  const newsList = newsItems
-    .map(
-      (item, idx) => `
-      <li style="margin: 8px 0;">
-        <a href="${item.url}" style="text-decoration:none;font-weight:600;">
-          ${idx + 1}. ${escapeHtml(item.title)}
-        </a>
-        <div style="font-size:12px;color:#666;">Author: ${escapeHtml(item.author)}</div>
-      </li>`
-    )
-    .join("");
-
-  return `
-    <div style="font-family:Arial,sans-serif;padding:16px;color:#111;">
-      <h2>Your Daily AI & Tech Digest</h2>
-      <p>Here are the top tech/AI stories right now:</p>
-      <ul style="padding-left:18px;">${newsList}</ul>
-      <hr style="margin:24px 0;border:none;border-top:1px solid #eee">
-      <div style="font-size:12px;color:#777;">
-        Sent with Automated Digest • ${new Date().toLocaleString()}
-      </div>
-    </div>`;
-}
-
-async function sendNewsDigest(to = DEFAULT_TO) {
-  const news = await getAiTechNews();
-  const htmlBody = buildEmailHtml(news);
+  // email link
+  const verifyUrl = `http://localhost:5000/verify/${token}`;
 
   const mailOptions = {
-    from: `Tech Digest <${GMAIL_USER}>`,
-    to,
-    subject: "🚀 Your Daily AI & Tech News",
-    html: htmlBody,
-    text: [
-      "Daily AI & Tech News",
-      ...news.map((n, i) => `${i + 1}. ${n.title} — ${n.url}`),
-    ].join("\n"),
+    from: `"My App" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: "Verify your email",
+    html: `
+      <h2>Hello ${name || "User"},</h2>
+      <p>Please click below to verify your email:</p>
+      <a href="${verifyUrl}" target="_blank">Verify Email</a>
+      <p>This link is valid for one-time use only.</p>
+    `,
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  return info.messageId;
-}
-
-// Manual trigger endpoint
-app.post("/send-digest", async (req, res) => {
   try {
-    const id = await sendNewsDigest(req.body?.to || DEFAULT_TO);
-    res.json({ success: true, messageId: id });
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: "Verification email sent!" });
   } catch (err) {
-    console.error("❌ Manual send failed:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ Error sending email:", err);
+    res.status(500).json({ success: false, message: "Failed to send email" });
   }
 });
 
-// Health check
-app.get("/", (_req, res) => res.send("Tech digest backend running"));
+// 3) Verify route → check token + redirect to frontend
+app.get("/verify/:token", (req, res) => {
+  const { token } = req.params;
+  const email = tokens.get(token);
 
-// Schedule daily at 9:00 AM
-cron.schedule("0 9 * * *", async () => {
-  try {
-    console.log("⏰ Running scheduled digest...");
-    const id = await sendNewsDigest(DEFAULT_TO);
-    console.log("✅ Digest sent:", id);
-  } catch (err) {
-    console.error("❌ Scheduled digest failed:", err.message);
+  if (!email) {
+    // token invalid → redirect with failure
+    return res.redirect("http://localhost:5173/verified?success=false");
   }
+
+  // token valid → consume it
+  tokens.delete(token);
+  console.log(`✅ ${email} verified successfully!`);
+
+  // redirect to frontend with success
+  res.redirect("http://localhost:5173/verified?success=true");
 });
 
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
+
