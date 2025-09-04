@@ -1,10 +1,10 @@
-// mini project 2
+// mini project 3
 
 import dotenv from 'dotenv';
 dotenv.config();
 import nodemailer from 'nodemailer';
 
-// console.log("Loaded Gmail:", process.env.GMAIL_USER);
+// // console.log("Loaded Gmail:", process.env.GMAIL_USER);
 
 
 // // 1) create transport
@@ -27,19 +27,28 @@ const mailOptions = {
   from: `My App <${process.env.GMAIL_USER}>`, // sender name + email
   to: process.env.GMAIL_USER,                 // send to yourself
 //   to:process.env.DUMMY_TO_MAIL,            // send to friends
-  subject: 'Hello Styled Email from Nodemailer',
-  text: 'This is a plain text fallback version of the email.',
+subject: 'Mini Project 3: Email with Attachments',
+  text: 'This email contains attachments!',
   html: `
-    <div style="font-family: Arial, sans-serif; padding: 20px;">
-      <h2 style="color: #4CAF50;">🎉 Welcome to Mini Project 2</h2>
-      <p>This email is <b>HTML formatted</b> with inline CSS.</p>
-      <p>Here’s a link: <a href="https://www.google.com">Google</a></p>
-      <hr/>
-      <footer style="font-size: 12px; color: gray;">
-        Sent with 😊 using Nodemailer
-      </footer>
-    </div>
-  `
+    <h2>📎 Check out the attachments below</h2>
+    <p>We even added an inline image:</p>
+    <img src="cid:uniqueImageId" width="300"/>
+  `,
+  attachments: [
+    {
+      filename: 'hello.txt',          // name shown in email
+      content: 'Hello World from Nodemailer! mini project 3', // text file content
+    },
+    {
+      filename: 'test.pdf',           // attach a real file from project folder
+      path: 'C:/Users/Hp/Downloads/Songs.pdf'
+    },
+    {
+      filename: 'image.png',          // inline image
+      path: 'C:/Users/Hp/Downloads/Zoro.png',
+      cid: 'uniqueImageId'            // same cid as used in <img src="">
+    }
+  ]
 };
 
 // // 4) send the email
@@ -48,4 +57,3 @@ transporter.sendMail(mailOptions, (err, info) => {
   console.log("✅ Email sent successfully!");
   console.log("Message ID:", info.messageId);
 });
-
