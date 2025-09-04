@@ -1,70 +1,69 @@
 import { useState } from "react";
-import axios from "axios";
 
-export default function ContactForm() {
+function ContactForm() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    message: "",
+    subject: "",
+    message: ""
   });
 
-  const [status, setStatus] = useState("");
-
-  // handle input change
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus("Sending...");
-
     try {
-      const res = await axios.post("http://localhost:5000/contact", formData);
-      if (res.data.success) {
-        setStatus("✅ Message sent successfully!");
-        setFormData({ name: "", email: "", message: "" }); // reset form
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus("❌ Failed to send message. Try again.");
+      const res = await fetch("http://localhost:5000/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      });
+      const data = await res.json();
+      alert(data.message || "Something went wrong");
+    } catch (err) {
+      console.error(err);
+      alert("Error sending email");
     }
   };
 
   return (
-    <div style={{ maxWidth: "400px", margin: "auto", padding: "20px" }}>
-      <h2>📩 Contact Us</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          name="name"
-          placeholder="Your Name"
-          value={formData.name}
-          onChange={handleChange}
-          required
-          style={{ display: "block", margin: "10px 0", width: "100%" }}
-        />
-        <input
-          type="email"
-          name="email"
-          placeholder="Your Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-          style={{ display: "block", margin: "10px 0", width: "100%" }}
-        />
-        <textarea
-          name="message"
-          placeholder="Your Message"
-          value={formData.message}
-          onChange={handleChange}
-          required
-          style={{ display: "block", margin: "10px 0", width: "100%" }}
-        />
-        <button type="submit">Send</button>
-      </form>
-      <p>{status}</p>
-    </div>
+    <form onSubmit={handleSubmit} className="contact-form">
+      <input
+        type="text"
+        name="name"
+        placeholder="Your Name"
+        value={formData.name}
+        onChange={handleChange}
+        required
+      />
+      <input
+        type="email"
+        name="email"
+        placeholder="Your Email"
+        value={formData.email}
+        onChange={handleChange}
+        required
+      />
+      <input
+        type="text"
+        name="subject"
+        placeholder="Subject"
+        value={formData.subject}
+        onChange={handleChange}
+        required
+      />
+      <textarea
+        name="message"
+        placeholder="Your Message"
+        value={formData.message}
+        onChange={handleChange}
+        required
+      />
+      <button type="submit">Send</button>
+    </form>
   );
 }
+
+export default ContactForm;
