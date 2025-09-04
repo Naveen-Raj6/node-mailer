@@ -1,4 +1,3 @@
-// mini project 5
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -10,6 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Dummy database (array to store users)
+const users = [];
+
 // Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -19,36 +21,46 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Contact API
-app.post("/contact", async (req, res) => {
-  const { name, email, message } = req.body; // frontend sends these
+// Email template function
+function generateWelcomeTemplate(name) {
+  return `
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+      <h2>🎉 Welcome, ${name}!</h2>
+      <p>We’re so glad you signed up 🚀</p>
+      <p>Explore our app and let us know your feedback.</p>
+      <p>Cheers,<br/>The Team</p>
+    </div>
+  `;
+}
 
-  if (!name || !email || !message) {
-    return res.status(400).json({ success: false, error: "All fields required" });
+// Signup API
+app.post("/signup", async (req, res) => {
+  const { name, email } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ success: false, error: "Name & Email required" });
   }
+
+  // Save user in dummy DB
+  users.push({ name, email });
 
   try {
     const mailOptions = {
-      from: `My App <${process.env.GMAIL_USER}>`, // sender is you
-      to: email, // 👈 send mail to user who filled the form
-      subject: `Hello ${name}, thanks for contacting us!`,
-      html: `
-        <h2>👋 Hi ${name}</h2>
-        <p>We received your message:</p>
-        <blockquote>${message}</blockquote>
-        <p>We’ll get back to you shortly.</p>
-      `,
+      from: `My App <${process.env.GMAIL_USER}>`,
+      to: email, // send email to user
+      subject: `Welcome, ${name}! 🎉`,
+      html: generateWelcomeTemplate(name),
     };
 
     await transporter.sendMail(mailOptions);
 
-    res.json({ success: true, message: "Email sent to user!" });
+    res.json({ success: true, message: "Signup successful, welcome email sent!" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, error: "Failed to send email" });
+    res.status(500).json({ success: false, error: "Email sending failed" });
   }
 });
 
 app.listen(5000, () => {
-  console.log("🚀 Backend running on http://localhost:5000");
+  console.log("🚀 Server running on http://localhost:5000");
 });
